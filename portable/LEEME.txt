@@ -1,0 +1,20 @@
+PULSO | Edición portátil para Windows x64
+
+1. Extrae el ZIP completo en una carpeta en la que puedas escribir.
+2. Abre Pulso.exe. El juego se abre en tu navegador predeterminado.
+3. Prueba Fase Cero o pulsa Importar MP3. La primera importación puede tardar
+   mientras se prepara el analizador musical. Puedes jugar sin Internet.
+
+Para salir, cierra la ventana de consola de Pulso. Para volver a tu partida
+desde otra pestaña, abre http://127.0.0.1:8765 mientras siga en ejecución.
+Extrae una sola copia por carpeta. Se utiliza el puerto local 8765.
+
+Puedes mover la carpeta completa o llevarla en una memoria USB después de
+cerrar el programa. Biblioteca contiene tus canciones y niveles. Cache guarda
+la compilación del analizador. Los ajustes de calibración están en el
+navegador que uses en cada equipo.
+
+El paquete incluye CPython y las dependencias musicales. Windows proporciona
+.NET Framework 4.x para el lanzador. El código de Pulso se distribuye con
+licencia MIT. Las licencias de las dependencias acompañan a sus archivos en
+runtime. El código fuente del juego se entrega también en Pulso.zip.

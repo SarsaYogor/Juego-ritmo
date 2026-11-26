@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#101214" />
+    <title>Pulso · Sala de juego</title>
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <i class="mark" aria-hidden="true"><b></b><b></b><b></b><b></b></i
+        >pulso<span>.</span>
+      </div>
+      <nav>
+        <button id="room" class="nav active">Sala de juego</button
+        ><button id="library" class="nav">Biblioteca</button>
+      </nav>
+      <button
+        id="settings"
+        class="iconbtn"
+        aria-label="Abrir ajustes"
+        title="Ajustes"
+      >
+        ☷
+      </button>
+    </header>
+    <main>
+      <div class="titleline">
+        <div>
+          <div class="eyebrow"><i class="led"></i> ESTUDIO DE RITMO</div>
+          <h1>Sala de juego</h1>
+        </div>
+        <span class="local"><i></i> Sesión local</span>
+      </div>
+      <div class="layout">
+        <section class="stage panel" aria-label="Escenario">
+          <div class="stats">
+            <div>
+              <small>Puntuación</small><strong id="score">000000</strong>
+            </div>
+            <div><small>Precisión</small><strong id="accuracy">—</strong></div>
+            <div><small>Combo</small><strong id="combo">0×</strong></div>
+            <div><small>Fallos</small><strong id="miss">0</strong></div>
+          </div>
+          <div class="field">
+            <div id="back"></div>
+            <canvas
+              id="stage"
+              aria-label="Cuatro carriles de notas descendentes"
+            ></canvas
+            ><span id="state" class="state">EN ESPERA</span
+            ><output id="judge"></output>
+          </div>
+          <div class="transport">
+            <span class="transportIcon">♪</span><span id="elapsed">0:00</span
+            ><progress id="progress" value="0" max="1"></progress
+            ><span id="length">0:33</span>
+          </div>
+        </section>
+        <aside class="panel config">
+          <div class="sectionlabel">
+            <i class="equal">▥</i> Pista seleccionada
+          </div>
+          <div id="cover" class="cover"></div>
+          <div class="track">
+            <h2 id="songTitle">Fase Cero</h2>
+            <p id="artist">Pulso Studio</p>
+            <div id="tags" class="tags"></div>
+          </div>
+          <div class="settingsblock">
+            <label>Dificultad</label>
+            <div
+              class="segments"
+              id="difficulties"
+              role="group"
+              aria-label="Dificultad"
+            >
+              <button data-d="easy">Fácil</button
+              ><button data-d="normal" class="chosen">Normal</button
+              ><button data-d="hard">Difícil</button>
+            </div>
+          </div>
+          <button class="primary" id="play">
+            <span aria-hidden="true">▶</span>
+            <span id="playText">Jugar</span></button
+          ><button class="secondary" id="import">
+            <span aria-hidden="true">＋</span> Importar MP3</button
+          ><input id="file" type="file" accept="audio/mpeg,.mp3" hidden />
+          <div id="message" role="status"></div>
+        </aside>
+      </div>
+      <div class="foot">
+        <div>
+          <kbd>D</kbd><kbd>F</kbd><kbd>J</kbd><kbd>K</kbd> <span>Carriles</span>
+        </div>
+        <div><kbd>Esc</kbd> <span>Pausa</span></div>
+      </div>
+    </main>
+    <dialog id="modal">
+      <div class="dialoghead">
+        <h2 id="modalTitle"></h2>
+        <button class="iconbtn" id="close" aria-label="Cerrar">×</button>
+      </div>
+      <div id="modalBody"></div>
+    </dialog>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
