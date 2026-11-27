@@ -55,9 +55,9 @@ La sala se abre en **http://127.0.0.1:8000**. Conserva la terminal abierta mient
 ### Controles
 
 1. Selecciona **Fácil**, **Normal** o **Difícil** y pulsa **Jugar**. Hay 1,6 s de entrada antes del inicio del audio.
-2. Pulsa **D, F, J y K** cuando la nota toque la línea clara de su carril. **Esc** pausa. Salir de la pestaña también pausa el reloj y el audio.
+2. Pulsa **D, F, J y K** cuando la nota toque la línea clara de su carril. El receptor marca el carril pulsado y muestra un ✓ al acertar o una × al fallar. El aviso indica la diferencia en milisegundos en cada acierto. Un valor negativo indica que te adelantaste y uno positivo que llegaste tarde. **Esc** pausa. Salir de la pestaña también pausa el reloj y el audio.
 3. Usa **Importar MP3** para analizar un archivo. **Biblioteca** recupera las pistas guardadas, con título, artista, álbum y portada si existen.
-4. En **Ajustes** puedes cambiar el desfase entre −300 y +300 ms. Si pulsas al oír el golpe y el juego registra una pulsación tardía, aumenta el valor. La corrección desplaza la línea temporal tanto para dibujar como para juzgar. El navegador recuerda los ajustes por origen, incluidos el desenfoque, oscurecimiento, fondo y efectos.
+4. En **Ajustes** puedes cambiar el desfase entre −300 y +300 ms. Si pulsas al oír el golpe y el juego registra una pulsación tardía, aumenta el valor. La corrección desplaza la línea temporal tanto para dibujar como para juzgar. El navegador recuerda los ajustes por origen. Puedes desactivar los destellos y el brillo y seguir viendo el resultado de cada pulsación.
 
 ### Desarrollo del frontend
 
@@ -78,6 +78,7 @@ Vite indica la dirección de desarrollo y reenvía `/api` al puerto 8000. En Pow
 | --- | --- |
 | `src/audio.ts`, `src/demo.json` | Síntesis original, tres mapas predefinidos y lectura del reloj audible de Web Audio. |
 | `src/judge.ts` | Juicio por carril, ventanas de acierto, combo, puntuación y penalizaciones. Funciona sin Canvas ni acceso al DOM. |
+| `src/keyboard.ts` | Asigna los caracteres D, F, J y K a los carriles, gestiona pulsaciones simultáneas y normaliza sus marcas de tiempo. |
 | `src/stage.ts` | Proyección de cuatro carriles en Canvas 2D y dibujo del tramo visible. |
 | `src/main.ts` | Importación, biblioteca, ajustes, ciclo de partida y pausa. |
 | `backend/analyzer.py` | Librosa y SoundFile extraen BPM, pulsos y candidatos a nota de la mezcla mono a 22.050 Hz. |
@@ -99,13 +100,13 @@ El generador pondera cada candidato con **55 % de fuerza de ataque, 27 % de inte
 | Normal | 210 ms | 340 ms | 7 | 0,38 |
 | Difícil | 130 ms | 230 ms | 10 | 0,25 |
 
-Cada instante contiene como máximo una nota. Los timbres parecidos prefieren el mismo carril. Si una repetición llega demasiado pronto para ese dedo, el patrón alterna con el carril emparejado. Esta versión deja silencios y puede devolver un mapa vacío si la pieza carece de ataques adecuados.
+Cada instante contiene como máximo una nota. Cada timbre conserva un carril preferente. Entre los carriles disponibles, el uso de las ocho notas recientes favorece los menos utilizados y reparte las secuencias repetitivas entre ambas manos. Esta versión deja silencios y puede devolver un mapa vacío si la pieza carece de ataques adecuados.
 
 ### Sincronización y puntuación
 
 El audio decodificado empieza en un instante programado de `AudioContext`. Las posiciones se calculan en segundos absolutos. `requestAnimationFrame` solicita el dibujo y `getOutputTimestamp()` relaciona la salida de audio con la marca temporal del evento del teclado. En navegadores que carecen de esa lectura se usa el reloj del contexto con la latencia comunicada por el dispositivo.
 
-Los márgenes de ±45, ±85 y ±125 ms dan 100, 75 y 45 puntos. Una tecla sin nota válida resta 180 puntos al saldo interno y rompe el combo. El marcador visible tiene un mínimo de cero. La precisión divide el crédito ponderado por los aciertos, notas perdidas y pulsaciones incorrectas. Se ignoran las autorepeticiones del teclado. La portada solo tiñe el escenario y el fondo. Los receptores y las notas mantienen colores legibles.
+Los márgenes de ±45, ±85 y ±125 ms dan 100, 75 y 45 puntos. El dibujo espera 45 ms adicionales antes de declarar una nota perdida, para dar tiempo a que lleguen las pulsaciones encoladas con su marca temporal original. El margen para acertar sigue siendo de ±125 ms. Una tecla sin nota válida resta 180 puntos al saldo interno y rompe el combo. El marcador visible tiene un mínimo de cero. La precisión divide el crédito ponderado por los aciertos, notas perdidas y pulsaciones incorrectas. Se ignora la repetición automática del teclado. Los receptores y las notas conservan sus colores con cualquier portada.
 
 ### Archivos y API local
 
@@ -114,7 +115,7 @@ Los márgenes de ±45, ±85 y ±125 ms dan 100, 75 y 45 puntos. Una tecla sin no
 - `GET /api/songs/{sha256}/level`, `/audio` y `/cover` recuperan el JSON, el MP3 y el JPEG respectivamente. La portada solo existe si se pudo extraer una imagen válida.
 - La biblioteca vive en `.pulso/<sha256>/`. Guarda una copia del MP3 para poder reproducirlo al volver a abrir el juego, la portada procesada, el análisis y los mapas. El original se abre en lectura. La variable `PULSO_DATA` admite otra ubicación.
 - Dos importaciones del mismo contenido comparten caché aunque cambie el nombre del archivo. El análisis se ejecuta en un hilo y se serializa para moderar el consumo de RAM. Cada canción nueva se publica mediante un renombrado al completar todos sus archivos.
-- Para cambiar las reglas o el analizador, aumenta el `VERSION` del módulo correspondiente. Reimporta el MP3 para generar la nueva versión. Si solo cambió el generador, se reutilizan las características ya calculadas.
+- Para cambiar las reglas o el analizador, aumenta el `VERSION` del módulo correspondiente. Si cambia el generador, basta con abrir la canción en la biblioteca para regenerar sus niveles con el análisis guardado. Si cambia el analizador, reimporta el MP3 para generar las características de la nueva versión.
 
 ## Pruebas y resultados
 
@@ -127,8 +128,8 @@ npm test
 npm run build
 ```
 
-- **Cuatro pruebas Python** cubren agrupaciones densas, límites por dedo, relevancia, variación de intensidad, silencios, síncopas y una importación HTTP completa. La prueba de integración sintetiza un archivo MP3 y una portada en un directorio temporal. Comprueba etiquetas, paleta, niveles, recuperación del audio, persistencia y reutilización de caché, rechazo de audio dañado y un MP3 silencioso sin portada.
-- **Cuatro pruebas del motor** comprueban los mapas predefinidos, el juicio absoluto, pulsaciones repetidas, fallos y penalización. Pulsar los cuatro carriles en cada instante del mapa difícil produce cero puntos y un 25 % de precisión.
+- **Cinco pruebas Python** cubren los cuatro carriles, límites por dedo, relevancia, variación de intensidad, silencios y síncopas. La integración HTTP comprueba la importación, portadas, actualización de niveles anteriores sin volver a analizar, contenidos dañados y un MP3 silencioso sin portada.
+- **Siete pruebas del motor** comprueban los mapas predefinidos, el juicio absoluto, las teclas encoladas, la detección por carácter, la repetición automática y las penalizaciones. Pulsar los cuatro carriles en cada instante del mapa difícil produce cero puntos y un 25 % de precisión.
 - **Referencia temporal**. En el MP3 de 120 BPM, la estimación fue 120,19 BPM y el nivel normal conservó los 32 golpes. El percentil 90 del error absoluto fue 2,3 ms al comparar los tiempos de las notas con los golpes originales. La primera implementación adelantaba los ataques de la referencia hasta un error p90 de 32,4 ms. El refinamiento de forma de onda y una prueba de regresión con límite de 12 ms cubren ese caso.
 - **Rendimiento observado**. En Windows con Intel Core Ultra 5 125U, una mezcla sintética estéreo de 180 s a 44,1 kHz tardó 7,71 s en analizarse y generar las tres dificultades con la compilación de Numba ya preparada. Se obtuvieron 240, 449 y 632 notas. La medida excluye transferencia, portada, reproducción y escritura de caché.
 - **Navegador**. Se comprobó la partida de demostración, el avance del transporte, el registro de una tecla incorrecta, la pausa, la reanudación y la pantalla de resultados. El navegador integrado denegó el permiso de automatización del selector de archivos. La importación se verificó por la API HTTP real. Edge sin interfaz también bloqueó el inicio de la sesión de pruebas automatizada en este entorno.

@@ -1,18 +1,21 @@
 import type { Note } from './types.ts'
-import type { Judge } from './judge.ts'
+import type { Judge, Judgement } from './judge.ts'
+import { KEYS } from './keyboard.ts'
 
-export const KEYS = ['KeyD', 'KeyF', 'KeyJ', 'KeyK']
-const labels = ['D', 'F', 'J', 'K']
 const colors = ['#a9ee77', '#83e4ba', '#83cee0', '#beb2ee']
+export const FLASH_MS = 420
+export type LaneFeedback = { result: Judgement; at: number }
 
 export function paint(
   canvas: HTMLCanvasElement,
   now: number,
   notes: Note[],
   judge: Judge | null,
-  held: Set<number>,
+  held: ReadonlyMap<number, string>,
   effects: boolean,
   palette: string[],
+  flashes: ReadonlyMap<number, LaneFeedback>,
+  frameTime: number,
 ) {
   const w = canvas.clientWidth,
     h = canvas.clientHeight
@@ -92,16 +95,50 @@ export function paint(
   }
   line(x(0, 1), target, x(4, 1), target, '#ddf6d1', 2)
   for (let lane = 0; lane < 4; lane++) {
-    const side = board(1) / 4,
-      xx = x(lane, 1) + 4
-    c.fillStyle = held.has(lane) && effects ? colors[lane] : '#30383c'
-    c.fillRect(xx, target + 5, side - 8, Math.min(42, h * 0.13))
-    c.fillStyle = colors[lane]
-    c.fillRect(xx, target + 4, side - 8, 3)
-    c.fillStyle = held.has(lane) && effects ? '#161c18' : '#ecf2ef'
+    const width = board(1) / 4 - 8,
+      xx = x(lane, 1) + 4,
+      height = Math.min(42, h * 0.13),
+      middle = xx + width / 2
+    const flash = flashes.get(lane)
+    const age = flash ? (frameTime - flash.at) / FLASH_MS : 1
+    const kind = age < 1 ? flash?.result.kind : undefined
+    const error = kind === 'wrong' || kind === 'miss'
+    const active = held.has(lane) || !!kind
+    const color = error ? '#ff9298' : kind === 'ok' ? '#f7d58c' : colors[lane]
+
+    if (effects && kind) {
+      const rise = target - Math.min(90, h * 0.21)
+      const light = c.createLinearGradient(0, rise, 0, target)
+      light.addColorStop(0, color + '00')
+      light.addColorStop(1, color + '85')
+      c.globalAlpha = (1 - age) ** 2
+      c.fillStyle = light
+      c.fillRect(xx, rise, width, target - rise)
+      const sweepY = target - 5 - age * 42
+      line(
+        xx + width * age * 0.2,
+        sweepY,
+        xx + width * (1 - age * 0.2),
+        sweepY,
+        color,
+        kind === 'perfect' ? 4 : 2,
+      )
+      c.globalAlpha = 1
+    }
+
+    c.fillStyle = active ? color : '#30383c'
+    c.fillRect(xx, target + 5, width, height)
+    c.fillStyle = color
+    c.fillRect(xx, target + 4, width, 3)
+    c.fillStyle = active ? '#161c18' : '#ecf2ef'
     c.font = 'bold 18px Consolas,monospace'
     c.textAlign = 'center'
-    c.fillText(labels[lane], xx + (side - 8) / 2, target + 31)
+    c.textBaseline = 'middle'
+    c.fillText(KEYS[lane], middle, target + 5 + height / 2)
+    if (kind && width >= 38) {
+      c.font = 'bold 14px "Segoe UI",sans-serif'
+      c.fillText(error ? '×' : '✓', xx + width - 11, target + 5 + height / 2)
+    }
   }
   for (let i = judge?.cursor ?? 0; i < notes.length; i++) {
     const n = notes[i],

@@ -16,7 +16,7 @@ RULES = {
     "normal": Rules(.21, .34, 7, .38),
     "hard": Rules(.13, .23, 10, .25),
 }
-VERSION = "rules-1"
+VERSION = "rules-2"
 
 
 def grid_distance(time, beats):
@@ -56,13 +56,17 @@ def generate(features, difficulty):
         times.insert(i, t)
         accepted[t] = band
 
-    last = [-100.] * 4
+    last = [float("-inf")] * 4
+    recent = []
     notes = []
     for t in times:
         home = accepted[t]
-        # When the same finger would repeat too quickly, use its paired lane.
-        order = (home, home ^ 1, home ^ 2, home ^ 3)
-        lane = next(lane for lane in order if t - last[lane] >= rules.repeat_gap)
+        # Prefer the timbre's home lane. Repeated accents gradually migrate
+        # across both hands, even when every event has the same timbre.
+        preference = {home: 0, home ^ 2: 4, home ^ 1: 5, home ^ 3: 6}
+        available = (lane for lane in range(4) if t - last[lane] >= rules.repeat_gap)
+        lane = min(available, key=lambda lane: (preference[lane] + 3 * recent.count(lane), last[lane]))
         last[lane] = t
+        recent = [*recent[-7:], lane]
         notes.append({"time": t, "lane": lane})
     return notes

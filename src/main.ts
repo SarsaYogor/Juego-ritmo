@@ -1,8 +1,9 @@
 import './style.css'
 import { audibleTime, demo, synthesize } from './audio.ts'
 import { sleeve } from './art.ts'
-import { Judge, WINDOW } from './judge.ts'
-import { paint, KEYS } from './stage.ts'
+import { INPUT_GRACE, Judge, WINDOW, type Judgement } from './judge.ts'
+import { inputTimestamp, Keyboard, KEYS } from './keyboard.ts'
+import { paint, type LaneFeedback } from './stage.ts'
 import type { Difficulty, Level, Song } from './types.ts'
 
 const el = <T extends HTMLElement = HTMLElement>(id: string) =>
@@ -17,8 +18,17 @@ const text = (id: string, s: string) => {
 const modal = el<HTMLDialogElement>('modal'),
   body = el('modalBody'),
   canvas = el<HTMLCanvasElement>('stage')
-const demoCover = sleeve(),
-  held = new Set<number>()
+const demoCover = sleeve()
+const keyboard = new Keyboard()
+const flashes = new Map<number, LaneFeedback>()
+const judgePanel = el('judge')
+const feedbackLabels = {
+  perfect: ['✓', 'Perfecto'],
+  good: ['✓', 'Bien'],
+  ok: ['✓', 'A tiempo'],
+  wrong: ['×', 'Tecla incorrecta'],
+  miss: ['!', 'Nota perdida'],
+}
 const src = (s: Song, kind: string) => '/api/songs/' + s.id + '/' + kind
 const cover = (s: Song) =>
   s.id === 'demo' ? demoCover : s.cover ? src(s, 'cover') : ''
@@ -45,6 +55,7 @@ let level: Level = demo,
 let session: Judge | null = null,
   start = 0,
   feedbackUntil = 0,
+  pausedTime = 0,
   token = 0,
   busy = false,
   paused = false
@@ -128,30 +139,58 @@ function selection() {
 function clock(at?: number) {
   return ctx ? audibleTime(ctx, at) - start - prefs.offset / 1000 : 0
 }
+function feedback(result: Judgement) {
+  const at = performance.now()
+  flashes.set(result.lane, { result, at })
+  feedbackUntil = at + 560
+  const [icon, label] = feedbackLabels[result.kind]
+  judgePanel.dataset.kind = result.kind
+  text('judgeIcon', icon)
+  text('judgeLabel', label)
+  let detail = 'Carril ' + KEYS[result.lane]
+  if ('deltaMs' in result) {
+    const delta = result.deltaMs
+    detail +=
+      ' · ' + (delta > 0 ? '+' : delta < 0 ? '−' : '') + Math.abs(delta) + ' ms'
+  } else if (result.kind === 'wrong') {
+    detail += ' · −180 pts'
+  }
+  text('judgeDetail', detail)
+}
+function clearFeedback() {
+  keyboard.clear()
+  flashes.clear()
+  feedbackUntil = 0
+}
 function draw() {
   cancelAnimationFrame(frame)
-  const t = session ? clock() : 0,
+  const t = session ? (paused ? pausedTime : clock()) : 0,
     notes = level.charts[difficulty]
   if (session && !paused) {
-    const before = session.misses
-    session.advance(t)
-    if (session.misses > before) feedbackUntil = performance.now() + 280
+    session.advanceFrame(t)
     if (
       t >
-      Math.max(level.song.duration, (notes.at(-1)?.time || 0) + WINDOW) + 0.03
+      Math.max(
+        level.song.duration,
+        (notes.at(-1)?.time || 0) + WINDOW + INPUT_GRACE,
+      ) +
+        0.03
     ) {
       finish()
       return
     }
   }
+  const frameTime = performance.now()
   paint(
     canvas,
     session ? t : (notes[0]?.time || 0) - 0.18,
     notes,
     session,
-    held,
+    keyboard.held,
     prefs.fx,
     prefs.dynamic ? level.song.palette : demo.song.palette,
+    flashes,
+    frameTime,
   )
   text('score', String(session?.points ?? 0).padStart(6, '0'))
   text('combo', (session?.combo ?? 0) + '×')
@@ -165,19 +204,14 @@ function draw() {
     1,
     Math.max(0, t / level.song.duration),
   )
-  text(
-    'judge',
-    session && !paused && prefs.fx && performance.now() < feedbackUntil
-      ? session.label
-      : '',
-  )
+  judgePanel.hidden = !session || paused || frameTime >= feedbackUntil
   if (session && !paused) frame = requestAnimationFrame(draw)
 }
 function reset() {
   token++
   session = null
   paused = false
-  held.clear()
+  clearFeedback()
   if (source) {
     source.stop()
     source.disconnect()
@@ -245,13 +279,13 @@ async function play() {
       audioCache = { id: level.song.id, buffer }
     }
     if (id !== token) return
-    session = new Judge(level.charts[difficulty])
+    session = new Judge(level.charts[difficulty], feedback)
     source = ctx.createBufferSource()
     source.buffer = audioCache.buffer
     source.connect(ctx.destination)
     start = ctx.currentTime + 1.6
     source.start(start)
-    feedbackUntil = 0
+    clearFeedback()
     text('state', 'EN JUEGO')
     text('playText', 'Pausar')
     draw()
@@ -264,8 +298,10 @@ async function play() {
 }
 async function pause() {
   if (!session || paused || !ctx) return
+  pausedTime = clock()
   paused = true
-  held.clear()
+  clearFeedback()
+  draw()
   await ctx.suspend()
   text('state', 'EN PAUSA')
   dialog('Partida en pausa')
@@ -330,7 +366,7 @@ function settings() {
   slider('shade', 'Oscurecimiento', 35, 95, '%')
   for (const [key, label] of [
     ['dynamic', 'Fondo y paleta de la portada'],
-    ['fx', 'Brillo y avisos de acierto'],
+    ['fx', 'Destellos y brillo de notas'],
   ] as const) {
     const l = document.createElement('label'),
       i = document.createElement('input')
@@ -487,23 +523,19 @@ el('difficulties').onclick = (e) => {
 }
 window.addEventListener('keydown', (e) => {
   if (modal.open || !session || paused) return
-  if (e.code === 'Escape') {
+  if (e.key === 'Escape' || e.code === 'Escape') {
     e.preventDefault()
     void pause()
     return
   }
-  const lane = KEYS.indexOf(e.code)
-  if (lane < 0) return
+  const input = keyboard.press(e)
+  if (!input) return
   e.preventDefault()
-  if (e.repeat || held.has(lane)) return
-  held.add(lane)
-  const t = clock(e.timeStamp)
-  if (t >= -WINDOW) {
-    session.press(lane, t)
-    feedbackUntil = performance.now() + 280
-  }
+  if (input.repeated) return
+  const t = clock(inputTimestamp(e.timeStamp))
+  if (t >= -WINDOW) session.press(input.lane, t)
 })
-window.addEventListener('keyup', (e) => held.delete(KEYS.indexOf(e.code)))
+window.addEventListener('keyup', (e) => keyboard.release(e))
 window.addEventListener('blur', () => {
   if (session) void pause()
 })

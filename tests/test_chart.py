@@ -39,3 +39,16 @@ class RulesTest(unittest.TestCase):
             n=len(generate(f,"normal"))
             if e<1: quiet=n
         self.assertLess(quiet,n)
+
+    def test_same_timbre_uses_both_hands_in_each_difficulty(self):
+        for interval in (.18, .55):
+            for band in range(4):
+                times = [round(1 + i * interval, 5) for i in range(100)]
+                features = dict(duration=60, beats=times,
+                                events=[event(t, band=band) for t in times])
+                for difficulty in RULES:
+                    with self.subTest(interval=interval, band=band, difficulty=difficulty):
+                        lanes = [n["lane"] for n in generate(features, difficulty)]
+                        self.assertGreaterEqual(len(lanes), 8)
+                        for i in range(0, len(lanes) - 7, 8):
+                            self.assertEqual(set(lanes[i:i + 8]), {0, 1, 2, 3})

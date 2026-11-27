@@ -29,6 +29,21 @@ def read(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def stored_level(directory):
+    current = directory / f"{VERSION}.json"
+    if current.is_file():
+        return current
+    # Earlier rule versions share the same mix features and track metadata.
+    return next(iter(sorted(directory.glob(f"{analyzer.VERSION}-rules-*.json"), reverse=True)), None)
+
+
+def save_level(directory, song, features):
+    charts = {d: chart.generate(features, d) for d in chart.RULES}
+    result = dict(version=VERSION, song=song, charts=charts)
+    atomic_json(directory / f"{VERSION}.json", result)
+    return result
+
+
 def pack(key, name, raw):
     dest = DATA / key
     with lock:
@@ -51,11 +66,13 @@ def pack(key, name, raw):
             else:
                 features = analyzer.analyze(path)
                 atomic_json(analysis_path, features)
-            meta = metadata(path, name, directory)
-            entry = dict(id=key, **meta, duration=features["duration"], bpm=features["bpm"])
-            charts = {d: chart.generate(features, d) for d in chart.RULES}
-            result = dict(version=VERSION, song=entry, charts=charts)
-            atomic_json(directory / f"{VERSION}.json", result)
+            old = stored_level(directory)
+            if old:
+                song = read(old)["song"]
+            else:
+                meta = metadata(path, name, directory)
+                song = dict(id=key, **meta, duration=features["duration"], bpm=features["bpm"])
+            result = save_level(directory, song, features)
             if directory == stage:
                 stage.rename(dest)
             return dict(result, cached=False)
@@ -87,7 +104,8 @@ async def ingest(request: Request, name: str = "Canción.mp3"):
 
 @app.get("/api/songs")
 def library():
-    return [read(p)["song"] for p in sorted(DATA.glob(f"{'[0-9a-f]'*64}/{VERSION}.json"))]
+    return [read(p)["song"] for directory in sorted(DATA.glob('[0-9a-f]' * 64))
+            if (p := stored_level(directory))]
 
 
 @app.get("/api/songs/{key}/{asset}")
@@ -97,7 +115,15 @@ def asset(key: str, asset: str):
     if not re.fullmatch("[0-9a-f]{64}", key) or asset not in files:
         raise HTTPException(404)
     filename, mime = files[asset]
-    path = DATA / key / filename
+    directory = DATA / key
+    path = directory / filename
+    if asset == "level" and not path.is_file():
+        with lock:
+            if not path.is_file():
+                old = stored_level(directory)
+                analysis = directory / f"{analyzer.VERSION}.json"
+                if old and analysis.is_file():
+                    save_level(directory, read(old)["song"], read(analysis))
     if not path.is_file():
         raise HTTPException(404)
     return FileResponse(path, media_type=mime)

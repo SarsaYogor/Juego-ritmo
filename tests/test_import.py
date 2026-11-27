@@ -81,6 +81,19 @@ class LocalImport(unittest.TestCase):
                 self.assertTrue(ingest(raw)["cached"])
                 self.assertEqual(times,[x.stat().st_mtime_ns for x in stored])
                 self.assertEqual(json.load(urllib.request.urlopen(base+"/api/songs")),[song])
+                directory = Path(env["PULSO_DATA"]) / key
+                analysis_time = (directory / "mix-2.json").stat().st_mtime_ns
+                version_path = directory / (result["version"] + ".json")
+                old_version = "mix-2-rules-1"
+                old = dict(result, version=old_version, charts={d: [] for d in result["charts"]})
+                (directory / (old_version + ".json")).write_text(json.dumps(old), encoding="utf-8")
+                version_path.unlink()
+                self.assertEqual(json.load(urllib.request.urlopen(base+"/api/songs")),[song])
+                upgraded = json.load(urllib.request.urlopen(base+f"/api/songs/{key}/level"))
+                self.assertEqual(upgraded["charts"], result["charts"])
+                self.assertEqual(set(n["lane"] for n in upgraded["charts"]["normal"]), {0, 1, 2, 3})
+                self.assertEqual((directory / "mix-2.json").stat().st_mtime_ns, analysis_time)
+                self.assertTrue(ingest(raw)["cached"])
                 for item in ["level","audio","cover"]:
                     with urllib.request.urlopen(base+f"/api/songs/{key}/{item}") as res:
                         self.assertEqual(res.status,200)

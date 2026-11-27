@@ -261,15 +261,61 @@ h1 {
   margin: 0 7px 1px 0;
 }
 #judge {
+  --judgement: #d0ffac;
   position: absolute;
-  top: 50%;
-  width: 100%;
-  text-align: center;
-  font-weight: 750;
-  letter-spacing: 0.03em;
-  color: #f4ffdf;
-  text-shadow: 0 2px 5px #000;
+  z-index: 1;
+  top: 16%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 144px;
+  padding: 8px 12px 8px 9px;
+  color: var(--judgement);
+  background: #101516f5;
+  border: 1px solid currentColor;
+  border-radius: 9px;
   pointer-events: none;
+}
+#judge[hidden] {
+  display: none;
+}
+#judge[data-kind='good'] {
+  --judgement: #8debc5;
+}
+#judge[data-kind='ok'] {
+  --judgement: #f7d58c;
+}
+#judge[data-kind='wrong'],
+#judge[data-kind='miss'] {
+  --judgement: #ff9b9e;
+}
+#judgeIcon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 26px;
+  height: 26px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #151d16;
+  background: var(--judgement);
+  border-radius: 6px;
+}
+#judgeLabel,
+#judgeDetail {
+  display: block;
+  white-space: nowrap;
+}
+#judgeLabel {
+  font-size: 0.91rem;
+}
+#judgeDetail {
+  color: #e0e9e4;
+  margin-top: 2px;
+  font:
+    0.76rem Consolas,
+    monospace;
 }
 .transport,
 .foot,

@@ -49,8 +49,14 @@
               id="stage"
               aria-label="Cuatro carriles de notas descendentes"
             ></canvas
-            ><span id="state" class="state">EN ESPERA</span
-            ><output id="judge"></output>
+            ><span id="state" class="state">EN ESPERA</span>
+            <div id="judge" hidden>
+              <span id="judgeIcon" aria-hidden="true"></span>
+              <div>
+                <strong id="judgeLabel"></strong>
+                <span id="judgeDetail"></span>
+              </div>
+            </div>
           </div>
           <div class="transport">
             <span class="transportIcon">♪</span><span id="elapsed">0:00</span
